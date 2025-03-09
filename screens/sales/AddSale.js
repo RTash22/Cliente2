@@ -6,11 +6,13 @@ import {
   TextInput, 
   TouchableOpacity, 
   Alert, 
-  ScrollView, 
   Animated,
   FlatList,
-  Modal
+  Modal,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
 
 const API_URLS = [
@@ -37,7 +39,8 @@ export default function AddSale({ route, navigation }) {
   const [customer, setCustomer] = useState('');
   const [total, setTotal] = useState('');
   const [products, setProducts] = useState([]);
-  const [status, setStatus] = useState('pendiente');
+  const [status, setStatus] = useState('pending');
+  const [paymentMethod, setPaymentMethod] = useState('cash');
   const [productQuantity, setProductQuantity] = useState('1');
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [currentApiUrl, setCurrentApiUrl] = useState(API_URLS[0]);
@@ -205,60 +208,34 @@ export default function AddSale({ route, navigation }) {
     </View>
   );
 
-  const renderSelectedProduct = ({ item }) => (
-    <View style={styles.selectedProductItem}>
-      <View style={styles.selectedProductInfo}>
-        <Text style={styles.selectedProductName}>{item.name}</Text>
-        <Text style={styles.selectedProductPrice}>Precio: ${item.price}</Text>
-      </View>
-      <View style={styles.quantityContainer}>
-        <TextInput
-          style={styles.quantityInput}
-          value={item.quantity.toString()}
-          keyboardType="numeric"
-          onChangeText={(text) => updateProductQuantity(item.productId, text)}
-        />
-        <TouchableOpacity 
-          style={styles.removeButton}
-          onPress={() => removeProduct(item.productId)}
-        >
-          <Text style={styles.removeButtonText}>×</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const validateForm = () => {
-    if (!customer) {
-      Alert.alert(
-        'Campos incompletos',
-        'Por favor ingrese el nombre del cliente.',
-        [{ text: 'OK' }]
-      );
-      return false;
+  const handleSubmit = async () => {
+    if (!customer.trim()) {
+      Alert.alert('Error', 'Por favor ingrese el nombre del cliente');
+      return;
     }
-    
+
     if (products.length === 0) {
-      Alert.alert(
-        'Sin productos',
-        'Por favor añada al menos un producto a la venta.',
-        [{ text: 'OK' }]
-      );
-      return false;
+      Alert.alert('Error', 'Por favor agregue al menos un producto');
+      return;
     }
-    
-    return true;
-  };
 
-  const addSale = async () => {
-    if (!validateForm()) return;
-
-    const newSale = {
-      customer,
-      total: parseFloat(total),
-      products,
-      status,
+    // Formatear los datos según la estructura que espera Laravel
+    const formattedSale = {
+      customer: customer.trim(),
+      total: parseFloat(total || '0'),
+      status: status,
+      payment_method: paymentMethod,
       date: new Date().toISOString(),
+      // Enviamos los productos como objetos individuales, no como array
+      product_id: products[0].productId,
+      quantity: products[0].quantity,
+      price: products[0].price,
+      // Si hay más productos, los enviamos como productos adicionales
+      additional_products: products.slice(1).map(product => ({
+        product_id: parseInt(product.productId),
+        quantity: parseInt(product.quantity),
+        price: parseFloat(product.price)
+      }))
     };
 
     if (isOfflineMode) {
@@ -271,8 +248,13 @@ export default function AddSale({ route, navigation }) {
     }
 
     try {
-      const response = await axios.post(currentApiUrl, newSale);
-      if (response.status === 201) {
+      // Mostrar los datos que se envían
+      console.log('Enviando datos de venta:', JSON.stringify(formattedSale, null, 2));
+      
+      const response = await axios.post(currentApiUrl, formattedSale);
+      console.log('Respuesta del servidor:', response.data);
+      
+      if (response.status === 201 || response.status === 200) {
         Alert.alert(
           'Venta agregada',
           'La venta se agregó exitosamente.',
@@ -281,27 +263,28 @@ export default function AddSale({ route, navigation }) {
       }
     } catch (error) {
       console.error('Error al agregar venta:', error.message);
-      
-      try {
-        const newResponse = await tryNextApiUrl();
-        if (newResponse) {
-          const response = await axios.post(currentApiUrl, newSale);
-          if (response.status === 201) {
-            Alert.alert(
-              'Venta agregada',
-              'La venta se agregó exitosamente.',
-              [{ text: 'OK', onPress: () => navigation.navigate('SalesList') }]
-            );
-            return;
-          }
+      if (error.response) {
+        console.log('Detalles del error:', error.response.data);
+        if (error.response.data.errors) {
+          console.log('Errores específicos:', error.response.data.errors);
+          
+          // Mostrar errores específicos al usuario
+          const errorMessages = Object.entries(error.response.data.errors)
+            .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
+            .join('\n');
+          
+          Alert.alert(
+            'Error de validación',
+            `Por favor corrija los siguientes errores:\n\n${errorMessages}`,
+            [{ text: 'OK' }]
+          );
+          return;
         }
-      } catch (retryError) {
-        console.error('Error en segundo intento:', retryError.message);
       }
       
       Alert.alert(
         'Error',
-        `Error al agregar la venta: ${error.message}. ¿Desea guardarla localmente?`,
+        'No se pudo agregar la venta. ¿Desea guardarla localmente?',
         [
           { text: 'No', style: 'cancel' },
           { 
@@ -321,46 +304,95 @@ export default function AddSale({ route, navigation }) {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Animated.View style={[styles.formContainer, { opacity: fadeAnim }]}>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <View style={styles.content}>
         <TextInput
           style={styles.input}
-          placeholder="Nombre del cliente"
           value={customer}
           onChangeText={setCustomer}
+          placeholder="Nombre del cliente"
         />
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Método de Pago:</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={paymentMethod}
+              onValueChange={(itemValue) => setPaymentMethod(itemValue)}
+              style={styles.picker}
+            >
+              <Picker.Item label="Efectivo" value="cash" />
+              <Picker.Item label="Tarjeta" value="card" />
+              <Picker.Item label="Transferencia" value="transfer" />
+            </Picker>
+          </View>
+        </View>
+
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Estado:</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={status}
+              onValueChange={(itemValue) => setStatus(itemValue)}
+              style={styles.picker}
+            >
+              <Picker.Item label="Pendiente" value="pending" />
+              <Picker.Item label="Completado" value="completed" />
+              <Picker.Item label="Cancelado" value="cancelled" />
+            </Picker>
+          </View>
+        </View>
 
         <View style={styles.productsSection}>
           <Text style={styles.sectionTitle}>Productos en la venta:</Text>
           <FlatList
             data={products}
-            renderItem={renderSelectedProduct}
-            keyExtractor={item => item.productId.toString()}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>No hay productos agregados</Text>
-            }
+            keyExtractor={(item) => item.productId.toString()}
+            renderItem={({ item }) => (
+              <View style={styles.productItem}>
+                <View style={styles.productInfo}>
+                  <Text style={styles.productName}>{item.name}</Text>
+                  <Text style={styles.productPrice}>Precio: ${item.price}</Text>
+                </View>
+                <View style={styles.quantityContainer}>
+                  <TextInput
+                    style={styles.quantityInput}
+                    value={item.quantity.toString()}
+                    onChangeText={(text) => updateProductQuantity(item.productId, text)}
+                    keyboardType="numeric"
+                  />
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => removeProduct(item.productId)}
+                  >
+                    <Text style={styles.removeButtonText}>X</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            style={styles.productsList}
           />
           
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.addProductButton}
             onPress={() => setShowProductModal(true)}
           >
-            <Text style={styles.addProductButtonText}>+ Añadir Producto</Text>
+            <Text style={styles.addProductButtonText}>+ Agregar Producto</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.totalContainer}>
-          <Text style={styles.totalLabel}>Total:</Text>
-          <Text style={styles.totalValue}>${total || '0'}</Text>
-        </View>
+        <Text style={styles.totalText}>Total: ${total}</Text>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.submitButton}
-          onPress={addSale}
+          onPress={handleSubmit}
         >
           <Text style={styles.submitButtonText}>Guardar Venta</Text>
         </TouchableOpacity>
-      </Animated.View>
+      </View>
 
       <Modal
         visible={showProductModal}
@@ -373,10 +405,11 @@ export default function AddSale({ route, navigation }) {
             <Text style={styles.modalTitle}>Seleccionar Producto</Text>
             <FlatList
               data={availableProducts}
+              keyExtractor={(item) => item.id.toString()}
               renderItem={renderProductItem}
-              keyExtractor={item => item.id.toString()}
+              style={styles.modalList}
             />
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.closeModalButton}
               onPress={() => setShowProductModal(false)}
             >
@@ -385,7 +418,7 @@ export default function AddSale({ route, navigation }) {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -394,45 +427,52 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  formContainer: {
-    padding: 15,
+  content: {
+    flex: 1,
+    padding: 20,
   },
   input: {
     backgroundColor: 'white',
-    padding: 12,
-    borderRadius: 8,
+    padding: 15,
+    borderRadius: 5,
     marginBottom: 15,
     borderWidth: 1,
     borderColor: '#ddd',
   },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 5,
+    marginBottom: 15,
+    backgroundColor: '#fff',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
+  },
   productsSection: {
-    marginBottom: 20,
+    marginVertical: 15,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
+  productsList: {
+    maxHeight: 200,
+    marginBottom: 15,
   },
-  selectedProductItem: {
-    backgroundColor: 'white',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+  productItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
-  selectedProductInfo: {
+  productInfo: {
     flex: 1,
   },
-  selectedProductName: {
+  productName: {
     fontSize: 16,
     fontWeight: '500',
   },
-  selectedProductPrice: {
+  productPrice: {
     fontSize: 14,
     color: '#666',
   },
@@ -473,26 +513,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  totalContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 15,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    marginVertical: 20,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  totalLabel: {
+  totalText: {
     fontSize: 18,
     fontWeight: 'bold',
+    marginBottom: 10,
     color: '#333',
-  },
-  totalValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2ecc71',
   },
   submitButton: {
     backgroundColor: '#3498db',
@@ -523,6 +548,22 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     textAlign: 'center',
     color: '#333',
+  },
+  modalList: {
+    maxHeight: 300,
+    marginBottom: 15,
+  },
+  closeModalButton: {
+    backgroundColor: '#95a5a6',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  closeModalButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   productListItem: {
     flexDirection: 'row',
@@ -561,22 +602,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
   },
-  closeModalButton: {
-    backgroundColor: '#95a5a6',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 15,
-  },
-  closeModalButtonText: {
-    color: 'white',
+  label: {
     fontSize: 16,
-    fontWeight: 'bold',
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#666',
-    fontStyle: 'italic',
-    marginVertical: 20,
+    marginBottom: 5,
+    color: '#333',
   },
 });

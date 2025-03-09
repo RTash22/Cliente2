@@ -1,69 +1,89 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, FlatList } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 
 export default function SaleDetail({ route, navigation }) {
-  const { sale } = route.params;
-  const [fadeAnim] = useState(new Animated.Value(0));
-  const [slideAnim] = useState(new Animated.Value(50));
-  const [isOfflineSale] = useState(!sale.id || sale.id <= 3);
+  const { sale } = route.params || {};
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: false,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: false,
-      })
-    ]).start();
-  }, []);
+  if (!sale) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>No se encontraron detalles de la venta</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.backButtonText}>Volver</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
-  // Formato de fecha
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Traducir estados del inglés al español
+  const translateStatus = (status) => {
+    const statusMap = {
+      'pending': 'Pendiente',
+      'completed': 'Completada',
+      'cancelled': 'Cancelada'
+    };
+    return statusMap[status] || status;
   };
 
-  // Renderiza un elemento de la lista de productos
-  const renderProductItem = ({ item }) => (
-    <View style={styles.productItem}>
-      <View style={styles.productDetails}>
-        <Text style={styles.productName}>{item.name}</Text>
-        <Text style={styles.productPrice}>Precio: ${item.price}</Text>
-      </View>
-      <View style={styles.quantityContainer}>
-        <Text style={styles.quantity}>x{item.quantity}</Text>
-        <Text style={styles.subtotal}>${item.price * item.quantity}</Text>
-      </View>
-    </View>
-  );
+  // Traducir métodos de pago
+  const translatePaymentMethod = (method) => {
+    const methodMap = {
+      'cash': 'Efectivo',
+      'card': 'Tarjeta',
+      'transfer': 'Transferencia'
+    };
+    return methodMap[method] || method;
+  };
+
+  // Formatear fecha
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    } catch (error) {
+      return 'Fecha no válida';
+    }
+  };
+
+  // Obtener la lista de productos
+  const getProducts = () => {
+    if (sale.sale_products && sale.sale_products.length > 0) {
+      return sale.sale_products;
+    } else if (sale.additional_products) {
+      // Si hay un producto principal y productos adicionales
+      const mainProduct = {
+        product_id: sale.product_id,
+        quantity: sale.quantity,
+        price: sale.price
+      };
+      return [mainProduct, ...sale.additional_products];
+    } else if (sale.products) {
+      // Formato antiguo/offline
+      return sale.products;
+    }
+    return [];
+  };
+
+  const products = getProducts();
+  const total = sale.total || products.reduce((sum, product) => sum + (product.price * product.quantity), 0);
 
   return (
     <ScrollView style={styles.container}>
-      <Animated.View 
-        style={[
-          styles.card, 
-          { 
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }] 
-          }
-        ]}
-      >
+      <View style={styles.card}>
         <View style={styles.header}>
-          <Text style={styles.saleName}>Venta #{sale.id}</Text>
-          {isOfflineSale && (
-            <Text style={styles.offlineTag}>(Venta Offline)</Text>
-          )}
+          <Text style={styles.saleName}>Venta #{sale.id || 'Nueva'}</Text>
         </View>
         
         <View style={styles.detailsContainer}>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Cliente:</Text>
-            <Text style={styles.detailValue}>{sale.customer}</Text>
+            <Text style={styles.detailValue}>{sale.customer || 'Sin nombre'}</Text>
           </View>
           
           <View style={styles.detailRow}>
@@ -76,38 +96,49 @@ export default function SaleDetail({ route, navigation }) {
             <View style={styles.statusContainer}>
               <Text style={[
                 styles.statusBadge, 
-                sale.status === 'completada' ? styles.completedStatus : styles.pendingStatus
+                sale.status === 'completed' ? styles.completedStatus : styles.pendingStatus
               ]}>
-                {sale.status === 'completada' ? 'Completada' : 'Pendiente'}
+                {translateStatus(sale.status)}
               </Text>
             </View>
           </View>
           
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Método de Pago:</Text>
+            <Text style={styles.detailValue}>{translatePaymentMethod(sale.payment_method)}</Text>
+          </View>
+          
           <View style={styles.productsSection}>
             <Text style={styles.sectionTitle}>Productos</Text>
-            <FlatList
-              data={sale.products}
-              renderItem={renderProductItem}
-              keyExtractor={(item, index) => `${item.productId || index}`}
-              scrollEnabled={false}
-            />
+            {products.map((product, index) => (
+              <View key={index} style={styles.productItem}>
+                <View style={styles.productDetails}>
+                  <Text style={styles.productName}>{product.name || `Producto #${product.product_id}`}</Text>
+                  <Text style={styles.productPrice}>Precio: ${product.price}</Text>
+                </View>
+                <View style={styles.quantityContainer}>
+                  <Text style={styles.quantity}>x{product.quantity}</Text>
+                  <Text style={styles.subtotal}>${product.quantity * product.price}</Text>
+                </View>
+              </View>
+            ))}
           </View>
           
           <View style={styles.summarySection}>
             <Text style={styles.sectionTitle}>Resumen</Text>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Productos:</Text>
-              <Text style={styles.summaryValue}>{sale.products.length}</Text>
+              <Text style={styles.summaryValue}>{products.length}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Cantidad Total:</Text>
               <Text style={styles.summaryValue}>
-                {sale.products.reduce((sum, product) => sum + product.quantity, 0)} unidades
+                {products.reduce((sum, product) => sum + product.quantity, 0)} unidades
               </Text>
             </View>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total:</Text>
-              <Text style={styles.totalValue}>${sale.total}</Text>
+              <Text style={styles.totalValue}>${total}</Text>
             </View>
           </View>
         </View>
@@ -118,7 +149,7 @@ export default function SaleDetail({ route, navigation }) {
         >
           <Text style={styles.backButtonText}>Volver</Text>
         </TouchableOpacity>
-      </Animated.View>
+      </View>
     </ScrollView>
   );
 }
@@ -129,12 +160,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
     padding: 15,
   },
+  errorContainer: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#e74c3c',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
   card: {
     backgroundColor: 'white',
     borderRadius: 15,
     overflow: 'hidden',
     marginBottom: 20,
-    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
     elevation: 3,
   },
   header: {
@@ -148,17 +191,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
     color: 'white',
-    flex: 1,
-  },
-  offlineTag: {
-    fontSize: 12,
-    color: '#fff',
-    backgroundColor: '#e74c3c',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginLeft: 10,
   },
   detailsContainer: {
     padding: 15,
@@ -206,56 +238,59 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
+    color: '#2c3e50',
+    marginBottom: 10,
   },
   productItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 12,
+    alignItems: 'center',
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
   productDetails: {
-    flex: 3,
+    flex: 1,
   },
   productName: {
     fontSize: 16,
+    color: '#333',
     fontWeight: '500',
-    marginBottom: 5,
   },
   productPrice: {
     fontSize: 14,
     color: '#666',
+    marginTop: 4,
   },
   quantityContainer: {
-    flex: 1,
     alignItems: 'flex-end',
   },
   quantity: {
     fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 5,
+    color: '#666',
+    fontWeight: '500',
   },
   subtotal: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#2ecc71',
-    fontWeight: '500',
+    fontWeight: 'bold',
+    marginTop: 4,
   },
   summarySection: {
     marginTop: 20,
     paddingTop: 20,
-    borderTopWidth: 1,
+    borderTopWidth: 2,
     borderTopColor: '#f0f0f0',
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 8,
   },
   summaryLabel: {
     fontSize: 16,
-    color: '#555',
+    color: '#666',
   },
   summaryValue: {
     fontSize: 16,
@@ -265,26 +300,25 @@ const styles = StyleSheet.create({
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 15,
-    marginTop: 10,
+    alignItems: 'center',
+    marginTop: 15,
+    paddingTop: 15,
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
   },
   totalLabel: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#2c3e50',
   },
   totalValue: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#2ecc71',
   },
   backButton: {
-    margin: 15,
     backgroundColor: '#3498db',
-    padding: 12,
-    borderRadius: 5,
+    padding: 15,
     alignItems: 'center',
   },
   backButtonText: {

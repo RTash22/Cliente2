@@ -199,12 +199,7 @@ export default function ProductsList({ navigation }) {
           Lista de Productos
           {isOfflineMode && ' (Offline)'}
         </Text>
-        <TouchableOpacity
-          style={styles.salesButton}
-          onPress={() => navigation.navigate('SalesList')}
-        >
-          <Text style={styles.salesButtonText}>Ventas</Text>
-        </TouchableOpacity>
+        
       </View>
       
       <View style={styles.buttonContainer}>
@@ -396,5 +391,5 @@ const styles = StyleSheet.create({
     color: '#e74c3c',
     marginBottom: 10,
     fontSize: 14,
-  }
+  },
 });
