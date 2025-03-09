@@ -46,6 +46,7 @@ export default function SalesList({ navigation }) {
       const response = await tryNextApiUrl();
       if (response && response.data) {
         console.log('=== DATOS DE VENTAS ===');
+        console.log('Primera venta:', JSON.stringify(response.data[0], null, 2));
         console.log(JSON.stringify(response.data, null, 2));
         setSales(response.data);
       }
@@ -60,33 +61,39 @@ export default function SalesList({ navigation }) {
     }
   };
 
-  const getProductsSummary = (sale) => {
-    if (!sale.sale_products || sale.sale_products.length === 0) {
-      return 'Sin productos';
-    }
-    const totalProducts = sale.sale_products.reduce((sum, product) => sum + product.quantity, 0);
-    const firstProduct = sale.sale_products[0];
-    if (sale.sale_products.length === 1) {
-      return `${firstProduct.quantity}x ${firstProduct.product.name}`;
-    }
-    return `${firstProduct.quantity}x ${firstProduct.product.name} y ${sale.sale_products.length - 1} productos más`;
-  };
-
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.saleItem}
       onPress={() => navigation.navigate('SaleDetail', { sale: item })}
     >
       <View style={styles.saleHeader}>
-        <Text style={styles.customerName}>{item.customer_name || 'Cliente no especificado'}</Text>
+        <Text style={styles.saleId}>Venta #{item.id}</Text>
         <Text style={styles.saleDate}>
-          {new Date(item.created_at).toLocaleDateString('es-MX')}
+          {new Date(item.created_at).toLocaleDateString('es-MX', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })}
         </Text>
       </View>
       
-      <View style={styles.saleInfo}>
-        <Text style={styles.productSummary}>{getProductsSummary(item)}</Text>
-        <Text style={styles.totalAmount}>Total: ${item.total || '0'}</Text>
+      <View style={styles.customerInfo}>
+        <Text style={styles.customerName}>
+          👤 {item.customer_name || 'Cliente no especificado'}
+        </Text>
+      </View>
+
+      <View style={styles.productsContainer}>
+        {item.product && (
+          <View style={styles.productItem}>
+            <Text style={styles.productName}>
+              {item.quantity}x {item.product.name}
+            </Text>
+            <Text style={styles.productPrice}>
+              ${(item.unit_price * item.quantity).toFixed(2)}
+            </Text>
+          </View>
+        )}
       </View>
       
       <View style={styles.saleFooter}>
@@ -98,11 +105,13 @@ export default function SalesList({ navigation }) {
           {item.status === 'completed' ? '✓ Completada' :
            item.status === 'pending' ? '⏳ Pendiente' : '✕ Cancelada'}
         </Text>
-        <Text style={styles.paymentMethod}>
-          {item.payment_method === 'cash' ? '💵 Efectivo' :
-           item.payment_method === 'card' ? '💳 Tarjeta' : '🏦 Transferencia'}
-        </Text>
+        <Text style={styles.totalAmount}>Total: ${item.total_amount || '0'}</Text>
       </View>
+
+      <Text style={styles.paymentMethod}>
+        {item.payment_method === 'cash' ? '💵 Efectivo' :
+         item.payment_method === 'card' ? '💳 Tarjeta' : '🏦 Transferencia'}
+      </Text>
     </TouchableOpacity>
   );
 
@@ -160,9 +169,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#ecf0f1',
+    paddingBottom: 10,
   },
-  customerName: {
-    fontSize: 16,
+  saleId: {
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#2c3e50',
   },
@@ -170,35 +182,64 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#7f8c8d',
   },
-  saleInfo: {
-    marginBottom: 10,
+  customerInfo: {
+    marginBottom: 15,
+    backgroundColor: '#f8f9fa',
+    padding: 10,
+    borderRadius: 8,
   },
-  productSummary: {
-    fontSize: 14,
+  customerName: {
+    fontSize: 16,
+    fontWeight: '500',
     color: '#34495e',
-    marginBottom: 5,
+  },
+  productsContainer: {
+    marginBottom: 15,
+  },
+  productItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ecf0f1',
+  },
+  productName: {
+    fontSize: 15,
+    color: '#2c3e50',
+    flex: 1,
+    fontWeight: '500',
+  },
+  productPrice: {
+    fontSize: 15,
+    color: '#27ae60',
+    fontWeight: '600',
+  },
+  saleFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#ecf0f1',
+    paddingTop: 10,
+  },
+  status: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   totalAmount: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#27ae60',
   },
-  saleFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 5,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#ecf0f1',
-  },
-  status: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
   paymentMethod: {
     fontSize: 14,
     color: '#7f8c8d',
+    marginTop: 8,
+    textAlign: 'right',
   },
   addButton: {
     position: 'absolute',

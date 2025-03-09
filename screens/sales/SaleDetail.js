@@ -1,154 +1,123 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
 
-export default function SaleDetail({ route, navigation }) {
-  const { sale } = route.params || {};
+export default function SaleDetail({ route }) {
+  const { sale } = route.params;
+  
+  console.log('=== DATOS DE LA VENTA EN DETALLE ===');
+  console.log(JSON.stringify(sale, null, 2));
 
   if (!sale) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>No se encontraron detalles de la venta</Text>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>Volver</Text>
-        </TouchableOpacity>
+        <Text style={styles.errorText}>No se encontraron datos de la venta</Text>
       </View>
     );
   }
 
-  // Traducir estados del inglés al español
-  const translateStatus = (status) => {
-    const statusMap = {
-      'pending': 'Pendiente',
-      'completed': 'Completada',
-      'cancelled': 'Cancelada'
-    };
-    return statusMap[status] || status;
-  };
-
-  // Traducir métodos de pago
-  const translatePaymentMethod = (method) => {
-    const methodMap = {
-      'cash': 'Efectivo',
-      'card': 'Tarjeta',
-      'transfer': 'Transferencia'
-    };
-    return methodMap[method] || method;
-  };
-
-  // Formatear fecha
   const formatDate = (dateString) => {
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { 
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
-    } catch (error) {
-      return 'Fecha no válida';
+    if (!dateString) return 'Fecha no disponible';
+    return new Date(dateString).toLocaleDateString('es-MX', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'completed': return '✓';
+      case 'pending': return '⏳';
+      case 'cancelled': return '✕';
+      default: return '•';
     }
   };
 
-  // Obtener la lista de productos
-  const getProducts = () => {
-    if (sale.sale_products && sale.sale_products.length > 0) {
-      return sale.sale_products;
-    } else if (sale.additional_products) {
-      // Si hay un producto principal y productos adicionales
-      const mainProduct = {
-        product_id: sale.product_id,
-        quantity: sale.quantity,
-        price: sale.price
-      };
-      return [mainProduct, ...sale.additional_products];
-    } else if (sale.products) {
-      // Formato antiguo/offline
-      return sale.products;
+  const getPaymentIcon = (method) => {
+    switch (method) {
+      case 'cash': return '💵';
+      case 'card': return '💳';
+      case 'transfer': return '🏦';
+      default: return '💰';
     }
-    return [];
   };
 
-  const products = getProducts();
-  const total = sale.total || products.reduce((sum, product) => sum + (product.price * product.quantity), 0);
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed': return '#27ae60';
+      case 'pending': return '#f39c12';
+      case 'cancelled': return '#e74c3c';
+      default: return '#7f8c8d';
+    }
+  };
+
+  const translateStatus = (status) => {
+    switch (status) {
+      case 'completed': return 'Completada';
+      case 'pending': return 'Pendiente';
+      case 'cancelled': return 'Cancelada';
+      default: return status;
+    }
+  };
+
+  const translatePaymentMethod = (method) => {
+    switch (method) {
+      case 'cash': return 'Efectivo';
+      case 'card': return 'Tarjeta';
+      case 'transfer': return 'Transferencia';
+      default: return method;
+    }
+  };
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.card}>
-        <View style={styles.header}>
-          <Text style={styles.saleName}>Venta #{sale.id || 'Nueva'}</Text>
+      {/* Encabezado */}
+      <View style={styles.header}>
+        <Text style={styles.saleId}>Venta #{sale.id}</Text>
+        <Text style={styles.date}>{formatDate(sale.created_at)}</Text>
+      </View>
+
+      {/* Estado y Método de Pago */}
+      <View style={styles.infoContainer}>
+        <View style={styles.infoItem}>
+          <Text style={styles.infoLabel}>Estado</Text>
+          <Text style={[styles.infoValue, { color: getStatusColor(sale.status) }]}>
+            {getStatusIcon(sale.status)} {translateStatus(sale.status)}
+          </Text>
         </View>
-        
-        <View style={styles.detailsContainer}>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Cliente:</Text>
-            <Text style={styles.detailValue}>{sale.customer || 'Sin nombre'}</Text>
+        <View style={styles.infoItem}>
+          <Text style={styles.infoLabel}>Método de Pago</Text>
+          <Text style={styles.infoValue}>
+            {getPaymentIcon(sale.payment_method)} {translatePaymentMethod(sale.payment_method)}
+          </Text>
+        </View>
+      </View>
+
+      {/* Producto */}
+      <View style={styles.productsContainer}>
+        <Text style={styles.sectionTitle}>Producto</Text>
+        <View style={styles.productItem}>
+          <View style={styles.productInfo}>
+            <Text style={styles.productName}>{sale.product.name}</Text>
+            <Text style={styles.productDescription}>{sale.product.description}</Text>
+            <Text style={styles.productCategory}>Categoría: {sale.product.category}</Text>
           </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Fecha:</Text>
-            <Text style={styles.detailValue}>{formatDate(sale.date)}</Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Estado:</Text>
-            <View style={styles.statusContainer}>
-              <Text style={[
-                styles.statusBadge, 
-                sale.status === 'completed' ? styles.completedStatus : styles.pendingStatus
-              ]}>
-                {translateStatus(sale.status)}
-              </Text>
-            </View>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Método de Pago:</Text>
-            <Text style={styles.detailValue}>{translatePaymentMethod(sale.payment_method)}</Text>
-          </View>
-          
-          <View style={styles.productsSection}>
-            <Text style={styles.sectionTitle}>Productos</Text>
-            {products.map((product, index) => (
-              <View key={index} style={styles.productItem}>
-                <View style={styles.productDetails}>
-                  <Text style={styles.productName}>{product.name || `Producto #${product.product_id}`}</Text>
-                  <Text style={styles.productPrice}>Precio: ${product.price}</Text>
-                </View>
-                <View style={styles.quantityContainer}>
-                  <Text style={styles.quantity}>x{product.quantity}</Text>
-                  <Text style={styles.subtotal}>${product.quantity * product.price}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-          
-          <View style={styles.summarySection}>
-            <Text style={styles.sectionTitle}>Resumen</Text>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Productos:</Text>
-              <Text style={styles.summaryValue}>{products.length}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Cantidad Total:</Text>
-              <Text style={styles.summaryValue}>
-                {products.reduce((sum, product) => sum + product.quantity, 0)} unidades
-              </Text>
-            </View>
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total:</Text>
-              <Text style={styles.totalValue}>${total}</Text>
-            </View>
+          <View style={styles.quantityContainer}>
+            <Text style={styles.quantity}>x{sale.quantity}</Text>
+            <Text style={styles.price}>Precio: ${sale.unit_price}</Text>
+            <Text style={styles.subtotal}>
+              Total: ${sale.total_amount}
+            </Text>
           </View>
         </View>
-        
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>Volver</Text>
-        </TouchableOpacity>
+      </View>
+
+      {/* Total */}
+      <View style={styles.totalContainer}>
+        <Text style={styles.totalLabel}>Total Final</Text>
+        <Text style={styles.totalAmount}>${sale.total_amount}</Text>
       </View>
     </ScrollView>
   );
@@ -158,172 +127,123 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
-    padding: 15,
   },
   errorContainer: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   errorText: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#e74c3c',
     textAlign: 'center',
-    marginBottom: 20,
-  },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: 15,
-    overflow: 'hidden',
-    marginBottom: 20,
-    elevation: 3,
   },
   header: {
-    padding: 15,
-    backgroundColor: '#3498db',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  saleName: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  detailsContainer: {
-    padding: 15,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
+    backgroundColor: 'white',
+    padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#eee',
   },
-  detailLabel: {
+  saleId: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 5,
+  },
+  date: {
     fontSize: 16,
-    color: '#555',
+    color: '#7f8c8d',
+  },
+  infoContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'white',
+    padding: 15,
+    marginTop: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  infoItem: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    marginBottom: 5,
+  },
+  infoValue: {
+    fontSize: 16,
     fontWeight: '500',
   },
-  detailValue: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: 'bold',
-  },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusBadge: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 15,
-  },
-  completedStatus: {
-    backgroundColor: '#2ecc71',
-    color: 'white',
-  },
-  pendingStatus: {
-    backgroundColor: '#f39c12',
-    color: 'white',
-  },
-  productsSection: {
-    marginTop: 20,
+  productsContainer: {
+    backgroundColor: 'white',
+    marginTop: 10,
+    padding: 15,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2c3e50',
-    marginBottom: 10,
+    marginBottom: 15,
   },
   productItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
   },
-  productDetails: {
+  productInfo: {
     flex: 1,
   },
   productName: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 5,
   },
-  productPrice: {
+  productDescription: {
     fontSize: 14,
-    color: '#666',
-    marginTop: 4,
+    color: '#7f8c8d',
+    marginBottom: 5,
+  },
+  productCategory: {
+    fontSize: 14,
+    color: '#3498db',
   },
   quantityContainer: {
     alignItems: 'flex-end',
   },
   quantity: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#3498db',
+    marginBottom: 5,
+  },
+  price: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    marginBottom: 5,
   },
   subtotal: {
     fontSize: 16,
-    color: '#2ecc71',
     fontWeight: 'bold',
-    marginTop: 4,
+    color: '#27ae60',
   },
-  summarySection: {
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: 2,
-    borderTopColor: '#f0f0f0',
-  },
-  summaryRow: {
+  totalContainer: {
+    backgroundColor: 'white',
+    marginTop: 10,
+    padding: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
-  },
-  summaryLabel: {
-    fontSize: 16,
-    color: '#666',
-  },
-  summaryValue: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 15,
-    paddingTop: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
   },
   totalLabel: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#2c3e50',
   },
-  totalValue: {
+  totalAmount: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2ecc71',
-  },
-  backButton: {
-    backgroundColor: '#3498db',
-    padding: 15,
-    alignItems: 'center',
-  },
-  backButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: '#27ae60',
   },
 });
