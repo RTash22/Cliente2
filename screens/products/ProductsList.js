@@ -194,10 +194,18 @@ export default function ProductsList({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>
-        Lista de Productos
-        {isOfflineMode && ' (Offline)'}
-      </Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>
+          Lista de Productos
+          {isOfflineMode && ' (Offline)'}
+        </Text>
+        <TouchableOpacity
+          style={styles.salesButton}
+          onPress={() => navigation.navigate('SalesList')}
+        >
+          <Text style={styles.salesButtonText}>Ventas</Text>
+        </TouchableOpacity>
+      </View>
       
       <View style={styles.buttonContainer}>
         <TouchableOpacity 
@@ -259,21 +267,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  listContainer: {
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     padding: 15,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginVertical: 20,
-    textAlign: 'center',
-    color: '#333',
+    color: '#2c3e50',
   },
-  testResult: {
+  salesButton: {
+    backgroundColor: '#3498db',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  salesButtonText: {
+    color: 'white',
     fontSize: 16,
-    marginVertical: 10,
-    textAlign: 'center',
-    color: 'green',
+    fontWeight: 'bold',
+  },
+  listContainer: {
+    padding: 15,
   },
   item: {
     backgroundColor: 'white',
