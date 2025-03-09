@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Animated, Alert } from 'react-native';
 
 export default function ProductDetail({ route, navigation }) {
   const { product } = route.params;
@@ -75,12 +75,27 @@ export default function ProductDetail({ route, navigation }) {
           </View>
         </View>
         
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>Volver</Text>
-        </TouchableOpacity>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>Volver</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.saleButton}
+            onPress={() => {
+              if (product.stock > 0) {
+                navigation.navigate('AddSale', { product });
+              } else {
+                Alert.alert('Error', 'No hay stock disponible para este producto');
+              }
+            }}
+          >
+            <Text style={styles.saleButtonText}>Agregar Venta</Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
     </ScrollView>
   );
@@ -174,14 +189,32 @@ const styles = StyleSheet.create({
     color: '#666',
     lineHeight: 24,
   },
-  backButton: {
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     margin: 15,
+    gap: 10,
+  },
+  backButton: {
+    flex: 1,
     backgroundColor: '#3498db',
     padding: 12,
     borderRadius: 5,
     alignItems: 'center',
   },
   backButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  saleButton: {
+    flex: 1,
+    backgroundColor: '#2ecc71',
+    padding: 12,
+    borderRadius: 5,
+    alignItems: 'center',
+  },
+  saleButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
